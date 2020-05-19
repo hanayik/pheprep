@@ -2,28 +2,27 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"log"
 	"os"
-	"strings"
-	"flag"
-	"sync"
 	"runtime"
+	"strings"
+	"github.com/korovkin/limiter"
 )
 
-
-func reformatFile(wg *sync.WaitGroup, inputFilePath string, outputFilePath string) {
+func reformatFile(inputFilePath string, outputFilePath string) {
 	//reformat an input file to be ready for pheweb
 
-	defer wg.Done()
+	// defer wg.Done()
 	//chr rsid pos a1 a2 beta se pval(-log10)
-	chrom 	:= 0
-	pos	:= 2
-	alt	:= 3
-	ref	:= 4
-	beta	:= 5
-	sebeta	:= 6
-	pval	:= 7
+	chrom := 0
+	pos := 2
+	alt := 3
+	ref := 4
+	beta := 5
+	sebeta := 6
+	pval := 7
 
 	// open input file
 	inFile, err := os.Open(inputFilePath)
@@ -47,7 +46,7 @@ func reformatFile(wg *sync.WaitGroup, inputFilePath string, outputFilePath strin
 	idx := 0
 	firstLine := 0
 	for scanner.Scan() {
-		if idx==firstLine {
+		if idx == firstLine {
 			fmt.Fprintf(outputWriter, "chrom\tpos\tref\talt\tbeta\tsebeta\tpval\n")
 		} else {
 			lineText := scanner.Text()
@@ -72,26 +71,36 @@ func reformatFile(wg *sync.WaitGroup, inputFilePath string, outputFilePath strin
 
 func main() {
 
-	//inFile := flag.String("i", "", "The input file from biobank IDP processing")
+	njobs := flag.Int("j", -1, "The number of concurrent jobs to run (-1 uses all cpu cores)")
 
 	//outFile := flag.String("o", "", "relative or full path of the output file name")
 
 	ncpus := runtime.NumCPU()
-	fmt.Println(ncpus)
-	var wg sync.WaitGroup
-
+	runtime.GOMAXPROCS(ncpus)
+	fmt.Println("number of cpus ", ncpus)
+	// var wg sync.WaitGroup
 	flag.Parse()
 
 	fileArray := flag.Args()
+
+	if *njobs == -1 {
+		*njobs = ncpus
+	}
+	fmt.Println("using njobs: ", *njobs)
+	limit := limiter.NewConcurrencyLimiter(*njobs)
+
+	// wg.Add(len(fileArray))
 	for _, inFile := range fileArray {
 		outFile := inFile + ".out"
-		wg.Add(1)
-		go reformatFile(&wg, inFile, outFile)
+		limit.Execute(func() {
+			reformatFile(inFile, outFile)
+		})
 	}
 
-	wg.Wait()
+	limit.Wait()
+
+	// wg.Wait()
 	//fmt.Println("input file is ", *inFile)
 	//fmt.Println("output file is ", *outFile)
 	//reformatFile(*inFile, *outFile)
 }
-
