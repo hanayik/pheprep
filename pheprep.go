@@ -85,6 +85,8 @@ func main() {
 
 	if *njobs == -1 {
 		*njobs = ncpus
+	} else if *njobs > ncpus {
+		*njobs = ncpus
 	}
 	fmt.Println("using njobs: ", *njobs)
 	limit := limiter.NewConcurrencyLimiter(*njobs)
